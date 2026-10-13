@@ -1,11 +1,21 @@
 # pricescan — vigilante de precios RTX 5090 / DGX Spark (GB10)
 
-Busca en Google Shopping (cientos de tiendas), comparadores y tiendas concretas:
+Busca en **toda Europa y EE. UU.**: Google Shopping de 9 países (ampliable a 22), comparadores (idealo ES/DE/FR/IT/AT/UK, Geizhals, Tweakers, Ceneo) y tiendas (PcComponentes, Mindfactory, Caseking, Alternate, LDLC, Materiel.net, Scan, Overclockers, Amazon ES/DE/FR/IT/US, Newegg, B&H, Micro Center, Best Buy, NVIDIA Marketplace…):
 
 - **GeForce RTX 5090 32 GB** (cualquier marca), descartando portátiles, PCs montados, la 5090 D china (24 GB), bloques de agua, cables, reacondicionados…
 - **NVIDIA DGX Spark y equipos GB10 de otras marcas**: Dell Pro Max GB10, ASUS Ascent GX10, Lenovo ThinkStation PGX, MSI EdgeXpert, Acer Veriton GN100, HP ZGX Nano, Gigabyte AI TOP Atom.
 
-Te avisa (consola, Telegram o ntfy en el móvil) cuando encuentra uno **por debajo de tu umbral** (por defecto ≈ precio de lanzamiento) y solo **otra vez si baja de precio**, para no llenarte de mensajes repetidos.
+Te avisa (consola, Telegram o ntfy en el móvil) con tres niveles:
+
+| Aviso | Cuándo | 5090 | GB10 |
+|---|---|---|---|
+| 🚨 **GANGA** | precio extremadamente bueno (`steal_price`) | ≤ 2.000 € | ≤ 3.000 € |
+| ⏳ **ÚLTIMAS UNIDADES** | la tienda dice "últimas unidades", "only 2 left", "nur noch 1", "plus que 2"… (ES/EN/DE/FR/IT/PT/NL/PL) o `LimitedAvailability` | — | — |
+| 🔥 **Buen precio** | ≈ precio de lanzamiento (`max_price`) | ≤ 2.400 € | ≤ 3.800 € |
+
+Los precios se comparan siempre con el **coste puesto en casa en EUR**: se convierte la moneda (cambio diario del BCE) y, para tiendas de otro país, se suma una estimación de IVA de importación y envío (EE. UU.: +21 % IVA + 80 €; ver `landing` en `config.yaml`). Así una 5090 FE de 1.999 $ en EE. UU. aparece como ≈2.160 € y se puede comparar directamente con una tienda alemana.
+
+Solo vuelve a avisar del mismo producto si **baja de precio** o si **pasa a últimas unidades**. Con `notify_deals: false` solo recibes gangas y últimas unidades a buen precio.
 
 ## Instalación
 
@@ -34,9 +44,11 @@ Salida de ejemplo:
 
 Todo lo visto se guarda en `historial.csv` para ver la evolución de precios.
 
-## Cobertura de "toda la web": SerpAPI (recomendado)
+## Cobertura de toda Europa + EE. UU.: SerpAPI (recomendado)
 
-Las tiendas grandes bloquean los scrapers. La forma fiable de cubrir todo es Google Shopping a través de [SerpAPI](https://serpapi.com) (el plan gratuito da 100 búsquedas/mes; cada pasada usa 8, una por cada `queries` de `config.yaml`, así que con el plan gratuito da para ~12 pasadas al mes: recorta las `queries` o usa un plan de pago si quieres más frecuencia):
+Las tiendas grandes bloquean los scrapers. La forma fiable de cubrirlo todo es Google Shopping a través de [SerpAPI](https://serpapi.com), país por país (`countries:` en `config.yaml`; disponibles: es, pt, fr, de, at, it, nl, be, ie, fi, gr, sk, pl, cz, se, dk, no, hu, ro, ch, gb, us).
+
+Coste: cada pasada gasta **países × queries** búsquedas (por defecto 9 × 3 = 27) y se lanza como mucho cada `every_minutes: 360` (4 veces al día ≈ 3.200 búsquedas/mes). El plan gratuito (100/mes) no llega: para usarlo gratis deja 1–2 países y sube `every_minutes`. Las demás fuentes (comparadores y tiendas) son gratis.
 
 ```bash
 export SERPAPI_KEY=tu_clave
@@ -77,7 +89,13 @@ Con cron (cada 30 min):
 */30 * * * * cd /ruta/price-scanner && .venv/bin/python -m pricescan >> pricescan.log 2>&1
 ```
 
-Conviene ejecutarlo desde casa (IP residencial): desde servidores en la nube muchas tiendas devuelven 403.
+Conviene ejecutarlo desde casa (IP residencial): desde servidores en la nube muchas tiendas devuelven 403. Una pasada completa con todas las fuentes tarda unos 15–20 min (2–5 s de pausa entre peticiones); desactiva con `enabled: false` las que no te interesen.
+
+## Comprar fuera de España
+
+- **UE**: mismo IVA incluido, garantía europea, sin aduana. Mira que la tienda envíe a España (Mindfactory, por ejemplo, solo envía a Alemania; Caseking, Alternate, Proshop, LDLC y Amazon sí).
+- **EE. UU.**: muchas tiendas no envían fuera; a menudo hace falta un reenviador. Pagarás el IVA al importar y la garantía puede ser solo en EE. UU. Ajusta `landing.US` a tu caso.
+- **UK / Suiza**: fuera de la UE, hay aduana. Los factores de `landing` son aproximados.
 
 ## Tests
 

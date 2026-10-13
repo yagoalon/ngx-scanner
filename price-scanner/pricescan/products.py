@@ -23,6 +23,7 @@ class Product:
     name: str
     max_price: float                     # precio "bueno" (≈ lanzamiento) en EUR
     min_price: float = 0                 # por debajo: casi seguro accesorio / estafa
+    steal_price: float = 0               # "ganga": precio extremadamente bueno → aviso urgente
     require_all: list[list[str]] = field(default_factory=list)  # cada grupo: al menos uno
     exclude: list[str] = field(default_factory=list)
     queries: list[str] = field(default_factory=list)            # búsquedas a lanzar
@@ -33,6 +34,7 @@ class Product:
         return cls(
             id=d["id"], name=d.get("name", d["id"]),
             max_price=float(d["max_price"]), min_price=float(d.get("min_price", 0)),
+            steal_price=float(d.get("steal_price", 0)),
             require_all=groups, exclude=d.get("exclude", []),
             queries=d.get("queries", [d.get("name", d["id"])]),
         )
@@ -44,9 +46,11 @@ class Product:
         return all(any(_has(t, term) for term in group) for group in self.require_all)
 
     def verdict(self, price: float) -> str | None:
-        """'deal' si está a precio bueno, 'suspicious' si es demasiado barato, None si no interesa."""
+        """'steal' (ganga), 'deal' (buen precio), 'suspicious' (demasiado barato) o None."""
         if price < self.min_price:
             return "suspicious"
+        if price <= self.steal_price:
+            return "steal"
         if price <= self.max_price:
             return "deal"
         return None

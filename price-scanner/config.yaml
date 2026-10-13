@@ -1,14 +1,17 @@
 # ---------------------------------------------------------------------------
-# Productos vigilados. Precios en EUR con IVA (España).
-#  max_price: por debajo de esto = "chollo" (≈ precio de lanzamiento) → aviso
-#  min_price: por debajo de esto = sospechoso (accesorio, estafa, marketplace raro)
+# Productos vigilados. Precios en EUR, comparados con el COSTE PUESTO EN CASA
+# (precio + IVA de importación + envío estimado, ver "landing" más abajo).
+#  steal_price: por debajo = 🚨 GANGA (precio extremadamente bueno) → aviso urgente siempre
+#  max_price:   por debajo = 🔥 buen precio (≈ lanzamiento)
+#  min_price:   por debajo = ⚠️ sospechoso (accesorio, estafa, marketplace raro) → no avisa
 #  require_all: cada grupo debe aparecer en el título (basta un término del grupo)
-#  exclude: si aparece cualquiera, se descarta
+#  exclude:     si aparece cualquiera, se descarta
 # ---------------------------------------------------------------------------
 products:
   - id: rtx5090
     name: GeForce RTX 5090 32 GB
-    # Founders Edition salió en España a 2.369 € (ene-2025). Ajusta a tu gusto.
+    # Founders Edition: 2.369 € en España / 1.999 $ en EE. UU. (ene-2025). Ajusta a tu gusto.
+    steal_price: 2000
     max_price: 2400
     min_price: 1300
     require_all:
@@ -16,80 +19,138 @@ products:
       - ["rtx", "geforce"]
     exclude: [
       "laptop", "portatil", "notebook", "pc gaming", "pc gamer", "ordenador", "sobremesa",
-      "torre", "equipo", "workstation", "5090 d", "d v2", "rtx pro", "5080", "5070",
-      "waterblock", "bloque", "backplate", "cable", "adaptador", "soporte", "funda", "riser",
-      "reacondicionado", "refurbished", "segunda mano", "usado", "open box", "alquiler",
+      "torre", "equipo", "workstation", "gaming pc", "desktop", "komplett pc", "gaming rechner",
+      "5090 d", "d v2", "rtx pro", "5080", "5070",
+      "waterblock", "wasserkuhler", "bloque", "backplate", "cable", "kabel", "adaptador",
+      "adapter", "soporte", "funda", "riser",
+      "reacondicionado", "refurbished", "renewed", "segunda mano", "usado", "used", "gebraucht",
+      "occasion", "open box", "b ware", "alquiler", "rental",
     ]
     queries: ["RTX 5090", "GeForce RTX 5090 32GB"]
 
   - id: gb10
     name: NVIDIA DGX Spark / GB10 (Dell Pro Max, ASUS GX10, Lenovo PGX, MSI, Acer, HP, Gigabyte)
     # DGX Spark FE: 3.999 $ (4 TB). Versiones de socios con 1-2 TB desde ~2.999 $.
+    steal_price: 3000
     max_price: 3800
     min_price: 1800
     require_all:
       - ["dgx spark", "gb10", "gx10", "ascent gx10", "thinkstation pgx", "veriton gn100",
          "gn100", "edgexpert", "zgx nano", "ai top atom", "grace blackwell superchip"]
     exclude: [
-      "cable", "qsfp", "adaptador", "soporte", "funda", "libro", "curso", "alquiler",
-      "reacondicionado", "refurbished", "segunda mano", "usado", "gb200", "dgx station",
+      "cable", "kabel", "qsfp", "adaptador", "adapter", "soporte", "funda", "libro", "book",
+      "curso", "alquiler", "rental", "reacondicionado", "refurbished", "renewed",
+      "segunda mano", "usado", "used", "gebraucht", "occasion", "gb200", "dgx station",
     ]
     queries: ["NVIDIA DGX Spark", "Dell Pro Max GB10", "ASUS Ascent GX10",
               "Lenovo ThinkStation PGX", "MSI EdgeXpert", "Acer Veriton GN100"]
 
+# Sólo avisar de gangas y de "últimas unidades" a buen precio (false) o también de cualquier
+# buen precio (true).
+notify_deals: true
+
+# ---------------------------------------------------------------------------
+# Coste puesto en casa para tiendas de otro país.
+#  factor: multiplica el precio en EUR; extra_eur: envío/gestión estimados.
+#  Dentro de la UE el precio ya lleva IVA. EE. UU. publica sin impuestos: +21 % IVA
+#  de importación (las GPUs y miniPCs no pagan arancel en la UE) + envío/aduana.
+# ---------------------------------------------------------------------------
+home_region: ES
+landing:
+  default: {factor: 1.0,  extra_eur: 20}   # resto de la UE
+  GB:      {factor: 1.01, extra_eur: 40}   # se quita el IVA UK 20 % y se paga el 21 % al importar
+  CH:      {factor: 1.12, extra_eur: 40}   # IVA suizo 8,1 % → 21 %
+  NO:      {factor: 0.97, extra_eur: 40}   # IVA noruego 25 % → 21 %
+  US:      {factor: 1.21, extra_eur: 80}   # sin sales tax + IVA importación + envío/DHL
+
 # ---------------------------------------------------------------------------
 # Fuentes. type:
-#   serpapi → Google Shopping (cubre cientos de tiendas: "toda la web"). Necesita SERPAPI_KEY.
-#   search  → buscador interno de una tienda, {query} se sustituye.
+#   serpapi → Google Shopping en varios países (cientos de tiendas). Necesita SERPAPI_KEY.
+#   search  → buscador interno de una tienda o comparador; {query} se sustituye.
 #   page    → URLs fijas (fichas de producto / tienda oficial).
-# render: true usa Chromium (Playwright) para webs con JavaScript o anti-bot.
-# selectors (opcional): {item, title, price, link} si la extracción automática falla.
+# Opciones: region (país, para el coste en casa), currency (si la web no la indica),
+#   render: true (Chromium/Playwright para webs con JavaScript o anti-bot),
+#   queries (sustituye a las de los productos en esa fuente),
+#   every_minutes (no consultarla más a menudo), enabled: false,
+#   selectors {item, title, price, link, stock} si la extracción automática falla.
+# Las URLs de búsqueda cambian con el tiempo: si una da 0 ofertas, revísala.
 # ---------------------------------------------------------------------------
 sources:
-  - name: Google Shopping ES
+  # ---- Toda Europa + EE. UU. de una vez (Google Shopping) -------------------
+  # Coste en búsquedas por pasada = nº países × nº queries (aquí 9 × 3 = 27).
+  - name: Google Shopping
     type: serpapi
-    gl: es
-    hl: es
-    google_domain: google.es
+    countries: [es, de, fr, it, nl, at, pt, gb, us]
+    queries: ["RTX 5090", "DGX Spark", "GB10"]
+    every_minutes: 360
 
-  - name: idealo.es (comparador)
-    type: search
-    url: https://www.idealo.es/resultados.html?q={query}
+  # ---- Comparadores (gratis, muchas tiendas por país) -----------------------
+  - {name: idealo ES, type: search, region: ES, url: "https://www.idealo.es/resultados.html?q={query}"}
+  - {name: idealo DE, type: search, region: DE, url: "https://www.idealo.de/preisvergleich/MainSearchProductCategory.html?q={query}"}
+  - {name: idealo FR, type: search, region: FR, url: "https://www.idealo.fr/prechcat.html?q={query}"}
+  - {name: idealo IT, type: search, region: IT, url: "https://www.idealo.it/confronta-prezzi/MainSearchProductCategory.html?q={query}"}
+  - {name: idealo AT, type: search, region: AT, url: "https://www.idealo.at/preisvergleich/MainSearchProductCategory.html?q={query}"}
+  - {name: idealo UK, type: search, region: GB, currency: GBP, url: "https://www.idealo.co.uk/mscat.html?q={query}"}
+  - {name: Geizhals EU, type: search, region: DE, url: "https://geizhals.eu/?fs={query}"}
+  - {name: Tweakers NL, type: search, region: NL, url: "https://tweakers.net/zoeken/?keyword={query}"}
+  - {name: Ceneo PL, type: search, region: PL, currency: PLN, url: "https://www.ceneo.pl/;szukaj-{query}"}
 
-  - name: PcComponentes
+  # ---- Tiendas: España -----------------------------------------------------
+  - {name: PcComponentes, type: search, region: ES, render: true, url: "https://www.pccomponentes.com/search/?query={query}"}
+  - {name: Alternate ES, type: search, region: ES, url: "https://www.alternate.es/listing.xhtml?q={query}"}
+  - {name: LDLC ES, type: search, region: ES, url: "https://www.ldlc.com/es-es/buscar/{query}/"}
+
+  # ---- Tiendas: Alemania / Francia / Benelux / UK --------------------------
+  - {name: Mindfactory DE, type: search, region: DE, url: "https://www.mindfactory.de/search_result.php?search_query={query}"}
+  - {name: Alternate DE, type: search, region: DE, url: "https://www.alternate.de/listing.xhtml?q={query}"}
+  - {name: Caseking DE, type: search, region: DE, url: "https://www.caseking.de/search?search={query}"}
+  - {name: Notebooksbilliger DE, type: search, region: DE, url: "https://www.notebooksbilliger.de/produkte/{query}"}
+  - {name: Proshop DE, type: search, region: DE, url: "https://www.proshop.de/?s={query}"}
+  - {name: LDLC FR, type: search, region: FR, url: "https://www.ldlc.com/recherche/{query}/"}
+  - {name: Materiel.net FR, type: search, region: FR, url: "https://www.materiel.net/recherche/{query}/"}
+  - {name: Scan UK, type: search, region: GB, currency: GBP, url: "https://www.scan.co.uk/search?q={query}"}
+  - {name: Overclockers UK, type: search, region: GB, currency: GBP, url: "https://www.overclockers.co.uk/search?sSearch={query}"}
+
+  # ---- Amazon (varios países) ---------------------------------------------
+  - &amazon
+    name: Amazon ES
     type: search
-    url: https://www.pccomponentes.com/search/?query={query}
+    region: ES
     render: true
-
-  - name: Alternate.es
-    type: search
-    url: https://www.alternate.es/listing.xhtml?q={query}
-
-  - name: LDLC
-    type: search
-    url: https://www.ldlc.com/es-es/buscar/{query}/
-
-  - name: Amazon.es
-    type: search
-    url: https://www.amazon.es/s?k={query}
-    render: true
-    selectors:
+    url: "https://www.amazon.es/s?k={query}"
+    selectors: &amazon_sel
       item: 'div[data-component-type="s-search-result"]'
       title: "h2"
       price: "span.a-price span.a-offscreen"
       link: "a.a-link-normal"
+      stock: "div.a-row.a-size-base"
+  - {<<: *amazon, name: Amazon DE, region: DE, url: "https://www.amazon.de/s?k={query}"}
+  - {<<: *amazon, name: Amazon FR, region: FR, url: "https://www.amazon.fr/s?k={query}"}
+  - {<<: *amazon, name: Amazon IT, region: IT, url: "https://www.amazon.it/s?k={query}"}
+  - {<<: *amazon, name: Amazon US, region: US, currency: USD, url: "https://www.amazon.com/s?k={query}"}
 
+  # ---- EE. UU. -------------------------------------------------------------
+  - {name: Newegg US, type: search, region: US, currency: USD, url: "https://www.newegg.com/p/pl?d={query}"}
+  - {name: B&H US, type: search, region: US, currency: USD, render: true, url: "https://www.bhphotovideo.com/c/search?q={query}"}
+  - {name: Micro Center US, type: search, region: US, currency: USD, render: true, url: "https://www.microcenter.com/search/search_results.aspx?Ntt={query}"}
+  - {name: Best Buy US, type: search, region: US, currency: USD, render: true, url: "https://www.bestbuy.com/site/searchpage.jsp?st={query}"}
+
+  # ---- Tiendas oficiales (Founders Edition / DGX Spark) --------------------
   - name: NVIDIA Marketplace
     type: page
     render: true
     urls:
       - https://marketplace.nvidia.com/es-es/consumer/graphics-cards/
       - https://marketplace.nvidia.com/es-es/developer/
+  - {name: NVIDIA Marketplace DE, type: page, region: DE, render: true,
+     urls: ["https://marketplace.nvidia.com/de-de/consumer/graphics-cards/", "https://marketplace.nvidia.com/de-de/developer/"]}
+  - {name: NVIDIA Marketplace FR, type: page, region: FR, render: true,
+     urls: ["https://marketplace.nvidia.com/fr-fr/consumer/graphics-cards/", "https://marketplace.nvidia.com/fr-fr/developer/"]}
+  - {name: NVIDIA Marketplace US, type: page, region: US, currency: USD, render: true,
+     urls: ["https://marketplace.nvidia.com/en-us/consumer/graphics-cards/", "https://marketplace.nvidia.com/en-us/developer/"]}
 
-# Conversión para tiendas que publican en otra moneda.
-fx_to_eur:
-  USD: 0.86
-  GBP: 1.15
+# Respaldo si no se puede descargar el cambio diario del BCE (euros por unidad).
+fx_to_eur: {USD: 0.86, GBP: 1.15, CHF: 1.07, PLN: 0.235, CZK: 0.04, SEK: 0.09, DKK: 0.134, NOK: 0.085, HUF: 0.0025, RON: 0.2}
 
 include_out_of_stock: false
 delay_seconds: [2, 5]       # pausa aleatoria entre peticiones
