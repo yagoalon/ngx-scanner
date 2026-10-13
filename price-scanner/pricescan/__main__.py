@@ -9,6 +9,7 @@ import argparse
 import csv
 import json
 import logging
+import os
 import random
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -188,6 +189,20 @@ def report(hits: list[Hit], cfg: dict, show_all: bool, state: dict) -> None:
         notify.send(text)
 
 
+def load_dotenv(path: Path) -> None:
+    """Carga CLAVE=valor de un archivo .env (sin pisar variables ya definidas)."""
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except FileNotFoundError:
+        return
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(prog="pricescan", description="Vigila precios de DGX Spark / GB10 y RTX 5090.")
     ap.add_argument("-c", "--config", default="config.yaml", type=Path)
@@ -195,6 +210,7 @@ def main() -> None:
     ap.add_argument("--all", action="store_true", help="mostrar todas las ofertas, no sólo chollos")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args()
+    load_dotenv(args.config.parent / ".env")
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
                         format="%(asctime)s %(levelname)s %(message)s", datefmt="%H:%M:%S")
 

@@ -35,15 +35,32 @@ Solo vuelve a avisar del mismo producto si **baja de precio** o si **pasa a últ
 
 ## Instalación
 
+Necesitas **Python 3.10 o superior** ([python.org](https://www.python.org/downloads/); en Windows marca "Add python.exe to PATH" al instalar).
+
+**Windows (PowerShell):**
+
+```powershell
+cd price-scanner
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt playwright
+python -m playwright install chromium
+copy .env.example .env      # y edítalo con el Bloc de notas
+```
+
+**macOS / Linux:**
+
 ```bash
 cd price-scanner
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-# Opcional (PcComponentes, Amazon, NVIDIA usan JavaScript/anti-bot):
-pip install playwright && python -m playwright install chromium
-# ...o usa tu Chrome/Chromium ya instalado:
-export CHROMIUM_PATH=/usr/bin/chromium
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt playwright
+python -m playwright install chromium
+cp .env.example .env        # y edítalo
 ```
+
+Playwright (Chromium) hace falta para las tiendas con `render: true` (PcComponentes, Amazon, Walmart, Best Buy, NVIDIA…). Sin él, esas fuentes fallan y el resto funciona igual.
+
+Las claves (Telegram, ntfy, SerpAPI) van en el archivo `.env`, junto a `config.yaml`. Todas son opcionales.
 
 ## Uso
 
@@ -68,25 +85,27 @@ Las tiendas grandes bloquean los scrapers. La forma fiable de cubrirlo todo es G
 
 Coste: cada pasada gasta **países × queries** búsquedas (por defecto 9 × 3 = 27) y se lanza como mucho cada `every_minutes: 360` (4 veces al día ≈ 3.200 búsquedas/mes). El plan gratuito (100/mes) no llega: para usarlo gratis deja 1–2 países y sube `every_minutes`. Las demás fuentes (comparadores y tiendas) son gratis.
 
-```bash
-export SERPAPI_KEY=tu_clave
+```
+SERPAPI_KEY=tu_clave        # en .env
 ```
 
 Sin clave esa fuente simplemente se salta y se usan las demás.
 
 ## Avisos al móvil
 
-**Telegram:** crea un bot con @BotFather y obtén tu chat id (p. ej. escribiendo a @userinfobot):
+Pon los valores en `.env`:
 
-```bash
-export TELEGRAM_BOT_TOKEN=123456:ABC...
-export TELEGRAM_CHAT_ID=123456789
+**Telegram:** habla con @BotFather → `/newbot` → te da el token. Escribe algo a tu bot y luego a @userinfobot para saber tu chat id:
+
+```
+TELEGRAM_BOT_TOKEN=123456:ABC...
+TELEGRAM_CHAT_ID=123456789
 ```
 
-**ntfy** (sin registro): instala la app ntfy, suscríbete a un tema con nombre difícil de adivinar y:
+**ntfy** (más fácil, sin registro): instala la app ntfy en el móvil, suscríbete a un tema con nombre difícil de adivinar y pon el mismo nombre:
 
-```bash
-export NTFY_TOPIC=gpu-chollos-x7k2q
+```
+NTFY_TOPIC=gpu-chollos-x7k2q
 ```
 
 ## Ajustar umbrales y tiendas
@@ -101,7 +120,15 @@ Todo está en `config.yaml` (se relee en cada pasada, puedes editarlo con `--loo
 
 ## Ejecutarlo de forma automática
 
-Con cron (cada 30 min):
+Lo más sencillo: deja una ventana abierta con `python -m pricescan --loop 30`.
+
+**Windows (Programador de tareas)**, para que arranque solo al iniciar sesión:
+
+```powershell
+schtasks /create /tn pricescan /sc onlogon /tr "cmd /c cd /d C:\ruta\price-scanner && .venv\Scripts\python -m pricescan --loop 30 >> pricescan.log 2>&1"
+```
+
+**macOS / Linux (cron)**, cada 30 min:
 
 ```cron
 */30 * * * * cd /ruta/price-scanner && .venv/bin/python -m pricescan >> pricescan.log 2>&1

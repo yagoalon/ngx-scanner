@@ -208,3 +208,15 @@ def test_ebay_listing():
     offers = extract_all(html, "https://www.ebay.com/sch", selectors=ebay["selectors"], currency="USD")
     o = next(x for x in offers if classify(x.title, PRODUCTS))
     assert (o.price, o.currency, o.low_stock, o.url) == (2149.0, "EUR", True, "https://ebay.example/itm/1")
+
+
+def test_load_dotenv(tmp_path, monkeypatch):
+    from pricescan.__main__ import load_dotenv
+    import os
+    (tmp_path / ".env").write_text('# comentario\nPRICESCAN_A="x y"\nPRICESCAN_B=\nPRICESCAN_C=ya\n')
+    monkeypatch.delenv("PRICESCAN_A", raising=False)
+    monkeypatch.setenv("PRICESCAN_C", "antes")
+    load_dotenv(tmp_path / ".env")
+    assert os.environ["PRICESCAN_A"] == "x y" and os.environ["PRICESCAN_B"] == ""
+    assert os.environ["PRICESCAN_C"] == "antes"   # no pisa lo ya definido
+    load_dotenv(tmp_path / "no-existe")
