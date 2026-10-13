@@ -1,0 +1,97 @@
+# ---------------------------------------------------------------------------
+# Productos vigilados. Precios en EUR con IVA (España).
+#  max_price: por debajo de esto = "chollo" (≈ precio de lanzamiento) → aviso
+#  min_price: por debajo de esto = sospechoso (accesorio, estafa, marketplace raro)
+#  require_all: cada grupo debe aparecer en el título (basta un término del grupo)
+#  exclude: si aparece cualquiera, se descarta
+# ---------------------------------------------------------------------------
+products:
+  - id: rtx5090
+    name: GeForce RTX 5090 32 GB
+    # Founders Edition salió en España a 2.369 € (ene-2025). Ajusta a tu gusto.
+    max_price: 2400
+    min_price: 1300
+    require_all:
+      - ["5090"]
+      - ["rtx", "geforce"]
+    exclude: [
+      "laptop", "portatil", "notebook", "pc gaming", "pc gamer", "ordenador", "sobremesa",
+      "torre", "equipo", "workstation", "5090 d", "d v2", "rtx pro", "5080", "5070",
+      "waterblock", "bloque", "backplate", "cable", "adaptador", "soporte", "funda", "riser",
+      "reacondicionado", "refurbished", "segunda mano", "usado", "open box", "alquiler",
+    ]
+    queries: ["RTX 5090", "GeForce RTX 5090 32GB"]
+
+  - id: gb10
+    name: NVIDIA DGX Spark / GB10 (Dell Pro Max, ASUS GX10, Lenovo PGX, MSI, Acer, HP, Gigabyte)
+    # DGX Spark FE: 3.999 $ (4 TB). Versiones de socios con 1-2 TB desde ~2.999 $.
+    max_price: 3800
+    min_price: 1800
+    require_all:
+      - ["dgx spark", "gb10", "gx10", "ascent gx10", "thinkstation pgx", "veriton gn100",
+         "gn100", "edgexpert", "zgx nano", "ai top atom", "grace blackwell superchip"]
+    exclude: [
+      "cable", "qsfp", "adaptador", "soporte", "funda", "libro", "curso", "alquiler",
+      "reacondicionado", "refurbished", "segunda mano", "usado", "gb200", "dgx station",
+    ]
+    queries: ["NVIDIA DGX Spark", "Dell Pro Max GB10", "ASUS Ascent GX10",
+              "Lenovo ThinkStation PGX", "MSI EdgeXpert", "Acer Veriton GN100"]
+
+# ---------------------------------------------------------------------------
+# Fuentes. type:
+#   serpapi → Google Shopping (cubre cientos de tiendas: "toda la web"). Necesita SERPAPI_KEY.
+#   search  → buscador interno de una tienda, {query} se sustituye.
+#   page    → URLs fijas (fichas de producto / tienda oficial).
+# render: true usa Chromium (Playwright) para webs con JavaScript o anti-bot.
+# selectors (opcional): {item, title, price, link} si la extracción automática falla.
+# ---------------------------------------------------------------------------
+sources:
+  - name: Google Shopping ES
+    type: serpapi
+    gl: es
+    hl: es
+    google_domain: google.es
+
+  - name: idealo.es (comparador)
+    type: search
+    url: https://www.idealo.es/resultados.html?q={query}
+
+  - name: PcComponentes
+    type: search
+    url: https://www.pccomponentes.com/search/?query={query}
+    render: true
+
+  - name: Alternate.es
+    type: search
+    url: https://www.alternate.es/listing.xhtml?q={query}
+
+  - name: LDLC
+    type: search
+    url: https://www.ldlc.com/es-es/buscar/{query}/
+
+  - name: Amazon.es
+    type: search
+    url: https://www.amazon.es/s?k={query}
+    render: true
+    selectors:
+      item: 'div[data-component-type="s-search-result"]'
+      title: "h2"
+      price: "span.a-price span.a-offscreen"
+      link: "a.a-link-normal"
+
+  - name: NVIDIA Marketplace
+    type: page
+    render: true
+    urls:
+      - https://marketplace.nvidia.com/es-es/consumer/graphics-cards/
+      - https://marketplace.nvidia.com/es-es/developer/
+
+# Conversión para tiendas que publican en otra moneda.
+fx_to_eur:
+  USD: 0.86
+  GBP: 1.15
+
+include_out_of_stock: false
+delay_seconds: [2, 5]       # pausa aleatoria entre peticiones
+state_file: state.json      # recuerda precios para avisar sólo de novedades / bajadas
+csv_file: historial.csv     # histórico de todo lo visto (pon null para desactivar)
