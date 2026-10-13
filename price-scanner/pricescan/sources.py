@@ -65,7 +65,9 @@ class Fetcher:
         if self._browser is None:
             from playwright.sync_api import sync_playwright  # import perezoso: dependencia opcional
             self._pw = sync_playwright().start()
-            self._browser = self._pw.chromium.launch(headless=True)
+            # CHROMIUM_PATH: usar un Chrome/Chromium ya instalado en vez del de Playwright.
+            exe = os.environ.get("CHROMIUM_PATH") or None
+            self._browser = self._pw.chromium.launch(headless=True, executable_path=exe)
         page = self._browser.new_page(user_agent=HEADERS["User-Agent"], locale="es-ES")
         try:
             page.goto(url, timeout=self.timeout * 1000, wait_until="domcontentloaded")
@@ -153,3 +155,27 @@ def run_serpapi(src: dict, fetcher: Fetcher, products: list[Product]) -> list[Of
 
 
 RUNNERS = {"page": run_page, "search": run_search, "serpapi": run_serpapi}
+
+
+def expand_sources(cfg: dict) -> list[dict]:
+    """Despliega 'variants' (una misma tienda en varios países) y aplica 'shop_queries'.
+
+    - name: eBay
+      type: search
+      selectors: {...}
+      variants:
+        - {region: US, currency: USD, url: "https://www.ebay.com/sch/i.html?_nkw={query}"}
+        - {region: DE, url: "https://www.ebay.de/sch/i.html?_nkw={query}"}
+    → "eBay US", "eBay DE" (cada variante hereda todo lo de la tienda y puede sobrescribirlo).
+    """
+    out: list[dict] = []
+    for src in cfg.get("sources", []):
+        base = {k: v for k, v in src.items() if k != "variants"}
+        for variant in src.get("variants") or [{}]:
+            s = {**base, **variant}
+            if "variants" in src and "name" not in variant:
+                s["name"] = f"{base.get('name', s['type'])} {s.get('region', '')}".strip()
+            if s["type"] == "search" and "queries" not in s and cfg.get("shop_queries"):
+                s["queries"] = cfg["shop_queries"]
+            out.append(s)
+    return out

@@ -1,6 +1,22 @@
 # pricescan — vigilante de precios RTX 5090 / DGX Spark (GB10)
 
-Busca en **toda Europa y EE. UU.**: Google Shopping de 9 países (ampliable a 22), comparadores (idealo ES/DE/FR/IT/AT/UK, Geizhals, Tweakers, Ceneo) y tiendas (PcComponentes, Mindfactory, Caseking, Alternate, LDLC, Materiel.net, Scan, Overclockers, Amazon ES/DE/FR/IT/US, Newegg, B&H, Micro Center, Best Buy, NVIDIA Marketplace…):
+Busca en **172 fuentes de 23 países** (Europa + EE. UU.), en su idioma y moneda:
+
+| Tipo | Dónde |
+|---|---|
+| Google Shopping (SerpAPI) | ES DE FR IT NL AT PT UK US (ampliable a 22 países) |
+| Marketplaces | **Amazon** ES DE FR IT NL BE PL SE UK US · **eBay** US ES DE FR IT NL BE AT IE PL CH UK (solo nuevo y "Cómpralo ya") · Allegro PL · eMAG RO HU BG · Kaufland DE CZ PL SK · Bol.com · Cdiscount · Otto |
+| EE. UU. | **Walmart**, **Best Buy**, Newegg, B&H, Micro Center, Target, Costco, Adorama, CDW, Central Computers, Dell |
+| Comparadores | idealo ES DE FR IT AT UK · Geizhals DE AT EU · billiger.de · Toppreise CH · Trovaprezzi IT · KuantoKusta PT · Tweakers / Kieskeurig NL · Ceneo PL · Heureka CZ SK · Árukereső HU · Compari RO · Skroutz GR · PriceRunner SE DK UK · Prisjakt SE NO FI |
+| España / Portugal | PcComponentes, Coolmod, Neobyte, Wipoid, Aussar, Fnac, El Corte Inglés, Worten ES PT, MediaMarkt, Globaldata, PCDiga |
+| Alemania / Austria / Suiza | Mindfactory, Caseking, Notebooksbilliger, Computeruniverse, Cyberport DE AT, MediaMarkt / Saturn, Galaxus, Digitec, Brack |
+| Francia / Italia / Benelux | LDLC, Materiel.net, Top Achat, Fnac, Boulanger, Grosbill, ePRICE, Unieuro, MediaWorld, Coolblue NL BE, Megekko, Azerty, Alternate ES DE NL BE FR AT |
+| Este / Nórdicos / UK | x-kom, Morele, Komputronik, Alza CZ SK HU AT DE, CZC, PC Garage · Proshop DE AT DK SE NO FI PL, Komplett SE NO DK IE, Inet, Webhallen, Elgiganten / Elkjøp / Gigantti, Verkkokauppa, Jimm's · Scan, Overclockers, Ebuyer, CCL, Currys |
+| Oficiales | NVIDIA Marketplace ES DE FR IT UK US · Dell (Pro Max GB10) ES DE FR IT UK |
+
+Los anuncios usados, reacondicionados, "solo caja", "para piezas" o de alquiler se descartan en 15 idiomas (`common_exclude`), algo clave en eBay, Walmart y Allegro.
+
+Productos:
 
 - **GeForce RTX 5090 32 GB** (cualquier marca), descartando portátiles, PCs montados, la 5090 D china (24 GB), bloques de agua, cables, reacondicionados…
 - **NVIDIA DGX Spark y equipos GB10 de otras marcas**: Dell Pro Max GB10, ASUS Ascent GX10, Lenovo ThinkStation PGX, MSI EdgeXpert, Acer Veriton GN100, HP ZGX Nano, Gigabyte AI TOP Atom.
@@ -25,6 +41,8 @@ python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 # Opcional (PcComponentes, Amazon, NVIDIA usan JavaScript/anti-bot):
 pip install playwright && python -m playwright install chromium
+# ...o usa tu Chrome/Chromium ya instalado:
+export CHROMIUM_PATH=/usr/bin/chromium
 ```
 
 ## Uso
@@ -78,7 +96,7 @@ Todo está en `config.yaml` (se relee en cada pasada, puedes editarlo con `--loo
 - `max_price` → precio a partir del cual avisa. Por defecto 2.400 € la 5090 (la FE salió a 2.369 €) y 3.800 € los GB10 (DGX Spark FE: 3.999 $; versiones de 1 TB de socios desde ~2.999 $). **Son estimaciones: ajústalas.**
 - `min_price` → por debajo se marca como ⚠️ SOSPECHOSO y no avisa (suelen ser accesorios o estafas de marketplace).
 - `exclude` → palabras que descartan un resultado.
-- Para añadir una tienda: copia un bloque `type: search` con su URL de búsqueda usando `{query}`. El extractor lee automáticamente los datos schema.org (JSON-LD/microdatos) que llevan casi todas las tiendas, y si no, usa una heurística (enlace del producto + precio más cercano). Si una tienda da 0 resultados, prueba `render: true` o define `selectors` (ver el ejemplo de Amazon).
+- Para añadir una tienda: copia un bloque `type: search` con su URL de búsqueda usando `{query}`. Si está en varios países, usa `variants:` (mira Amazon o eBay en `config.yaml`). El extractor lee automáticamente los datos schema.org (JSON-LD/microdatos) que llevan casi todas las tiendas, y si no, usa una heurística (enlace del producto + precio más cercano). Si una tienda da 0 resultados, prueba `render: true` o define `selectors` (ver el ejemplo de Amazon).
 - Para vigilar una ficha concreta (p. ej. la página de un modelo en Dell o NVIDIA), usa `type: page` con `urls:`.
 
 ## Ejecutarlo de forma automática
@@ -89,11 +107,12 @@ Con cron (cada 30 min):
 */30 * * * * cd /ruta/price-scanner && .venv/bin/python -m pricescan >> pricescan.log 2>&1
 ```
 
-Conviene ejecutarlo desde casa (IP residencial): desde servidores en la nube muchas tiendas devuelven 403. Una pasada completa con todas las fuentes tarda unos 15–20 min (2–5 s de pausa entre peticiones); desactiva con `enabled: false` las que no te interesen.
+Conviene ejecutarlo desde casa (IP residencial): desde servidores en la nube muchas tiendas devuelven 403. Las tiendas se consultan en paralelo (`parallel: 8` con HTTP normal y `parallel_browsers: 3` navegadores para las 68 fuentes con `render: true`), con 2–5 s de pausa entre peticiones a la misma tienda. Una pasada completa tarda unos 20–30 min. Para ir más rápido, quita países o tiendas con `enabled: false`, o recorta `shop_queries`.
 
 ## Comprar fuera de España
 
 - **UE**: mismo IVA incluido, garantía europea, sin aduana. Mira que la tienda envíe a España (Mindfactory, por ejemplo, solo envía a Alemania; Caseking, Alternate, Proshop, LDLC y Amazon sí).
+- **eBay / Walmart / Allegro (marketplaces)**: comprueba la valoración del vendedor. Un precio por debajo de `min_price` se marca como ⚠️ sospechoso y no avisa.
 - **EE. UU.**: muchas tiendas no envían fuera; a menudo hace falta un reenviador. Pagarás el IVA al importar y la garantía puede ser solo en EE. UU. Ajusta `landing.US` a tu caso.
 - **UK / Suiza**: fuera de la UE, hay aduana. Los factores de `landing` son aproximados.
 

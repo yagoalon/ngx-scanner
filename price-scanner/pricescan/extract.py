@@ -50,7 +50,15 @@ LOW_STOCK_RE = re.compile(
     r"ultimi (?:pezzi|disponibili)|solo \d+ disponibil|disponibilit[aà] limitata|"
     r"apenas \d+ (?:em|dispon)|"
     r"nog (?:maar )?\d+ (?:op voorraad|beschikbaar)|laatste (?:stuks|exemplaren)|"
-    r"ostatnie sztuki|tylko \d+ szt",
+    r"ostatnie sztuki|tylko \d+ szt|"
+    r"posledn[ií] kus|posledn[eé] kusy|zbyv[aá] (?:posledn|jen)|"            # CZ / SK
+    r"f[åa] kvar|endast \d+ kvar|bara \d+ kvar|sista exemplar|"              # SE
+    r"kun \d+ (?:tilbage|igjen|p[åa] lager)|f[åa] (?:tilbage|igjen|p[åa] lager)|"  # DK / NO
+    r"vain \d+ j[äa]ljell[äa]|viimeiset kappaleet|v[äa]h[äa]n j[äa]ljell[äa]|"    # FI
+    r"utols[oó] darab|csak \d+ db|"                                         # HU
+    r"ultimele (?:buc|produse)|stoc limitat|"                               # RO
+    r"τελευτα[ίι]α τεμ[άα]χια|"                                              # GR
+    r"only a few left|almost gone|last one|\b[1-3] (?:available|disponibles?|verf[üu]gbar|disponibili)\b",  # eBay / Walmart / Best Buy
     re.IGNORECASE,
 )
 

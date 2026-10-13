@@ -5,7 +5,8 @@
 #  max_price:   por debajo = 🔥 buen precio (≈ lanzamiento)
 #  min_price:   por debajo = ⚠️ sospechoso (accesorio, estafa, marketplace raro) → no avisa
 #  require_all: cada grupo debe aparecer en el título (basta un término del grupo)
-#  exclude:     si aparece cualquiera, se descarta
+#  exclude:     si aparece cualquiera, se descarta (se suman las de common_exclude)
+# Los títulos se comparan sin tildes ni mayúsculas ("Portátil" = "portatil").
 # ---------------------------------------------------------------------------
 products:
   - id: rtx5090
@@ -18,13 +19,15 @@ products:
       - ["5090"]
       - ["rtx", "geforce"]
     exclude: [
-      "laptop", "portatil", "notebook", "pc gaming", "pc gamer", "ordenador", "sobremesa",
-      "torre", "equipo", "workstation", "gaming pc", "desktop", "komplett pc", "gaming rechner",
+      # portátiles y PCs montados, en varios idiomas
+      "laptop", "portatil", "portatile", "notebook", "pc portable", "kannettava", "barbar dator",
+      "pc gaming", "gaming pc", "pc gamer", "pc da gaming", "pc fisso", "ordenador", "ordinateur",
+      "sobremesa", "torre", "equipo", "workstation", "desktop", "komplett pc", "gaming rechner",
+      "komputer", "pocitac", "herni pc", "speldator", "gamingdator", "unita centrale",
+      # otras GPUs y accesorios
       "5090 d", "d v2", "rtx pro", "5080", "5070",
       "waterblock", "wasserkuhler", "bloque", "backplate", "cable", "kabel", "adaptador",
       "adapter", "soporte", "funda", "riser",
-      "reacondicionado", "refurbished", "renewed", "segunda mano", "usado", "used", "gebraucht",
-      "occasion", "open box", "b ware", "alquiler", "rental",
     ]
     queries: ["RTX 5090", "GeForce RTX 5090 32GB"]
 
@@ -39,11 +42,29 @@ products:
          "gn100", "edgexpert", "zgx nano", "ai top atom", "grace blackwell superchip"]
     exclude: [
       "cable", "kabel", "qsfp", "adaptador", "adapter", "soporte", "funda", "libro", "book",
-      "curso", "alquiler", "rental", "reacondicionado", "refurbished", "renewed",
-      "segunda mano", "usado", "used", "gebraucht", "occasion", "gb200", "dgx station",
+      "curso", "gb200", "dgx station",
     ]
     queries: ["NVIDIA DGX Spark", "Dell Pro Max GB10", "ASUS Ascent GX10",
               "Lenovo ThinkStation PGX", "MSI EdgeXpert", "Acer Veriton GN100"]
+
+# Se aplican a todos los productos: usado / reacondicionado / caja vacía / piezas / alquiler,
+# en ES EN DE FR IT PT NL PL CZ SE DK NO FI HU RO. Muy útil en eBay, Walmart y Allegro.
+common_exclude: [
+  "segunda mano", "usado", "used", "gebraucht", "occasion", "usato", "gebruikt", "tweedehands",
+  "uzywany", "pouzity", "pouzite", "begagnad", "brugt", "brukt", "kaytetty", "hasznalt",
+  "second hand", "pre owned", "preowned",
+  "reacondicionado", "refurbished", "renewed", "reconditionne", "ricondizionato", "recondicionado",
+  "odnowiony", "generaluberholt", "resigilat", "rozbaleno", "open box", "b ware", "ex demo", "ex display",
+  "box only", "only box", "empty box", "caja vacia", "solo caja", "leerkarton", "nur karton",
+  "nur ovp", "boite vide", "scatola vuota", "pusty karton", "photo of", "picture of", "foto de",
+  "for parts", "para piezas", "defekt", "defectuoso", "defective", "not working", "pour pieces",
+  "per ricambi", "na czesci", "read description", "lea la descripcion",
+  "alquiler", "rental", "miete", "mieten", "noleggio", "wynajem",
+]
+
+# Búsquedas que se lanzan en cada tienda (menos búsquedas = pasada más rápida).
+# Quita esta línea para usar las "queries" de cada producto.
+shop_queries: ["RTX 5090", "DGX Spark", "GB10", "Ascent GX10", "ThinkStation PGX"]
 
 # Sólo avisar de gangas y de "últimas unidades" a buen precio (false) o también de cualquier
 # buen precio (true).
@@ -60,7 +81,7 @@ landing:
   default: {factor: 1.0,  extra_eur: 20}   # resto de la UE
   GB:      {factor: 1.01, extra_eur: 40}   # se quita el IVA UK 20 % y se paga el 21 % al importar
   CH:      {factor: 1.12, extra_eur: 40}   # IVA suizo 8,1 % → 21 %
-  NO:      {factor: 0.97, extra_eur: 40}   # IVA noruego 25 % → 21 %
+  "NO":    {factor: 0.97, extra_eur: 40}   # IVA noruego 25 % → 21 %
   US:      {factor: 1.21, extra_eur: 80}   # sin sales tax + IVA importación + envío/DHL
 
 # ---------------------------------------------------------------------------
@@ -70,13 +91,14 @@ landing:
 #   page    → URLs fijas (fichas de producto / tienda oficial).
 # Opciones: region (país, para el coste en casa), currency (si la web no la indica),
 #   render: true (Chromium/Playwright para webs con JavaScript o anti-bot),
-#   queries (sustituye a las de los productos en esa fuente),
-#   every_minutes (no consultarla más a menudo), enabled: false,
-#   selectors {item, title, price, link, stock} si la extracción automática falla.
-# Las URLs de búsqueda cambian con el tiempo: si una da 0 ofertas, revísala.
+#   queries (sustituye a shop_queries en esa fuente), every_minutes (no consultarla más
+#   a menudo), enabled: false, selectors {item, title, price, link, stock}.
+#   variants: la misma tienda en varios países; cada variante hereda todo y sobrescribe
+#   lo que ponga (normalmente region, currency y url). Se llama "<name> <region>".
+# Las URLs de búsqueda cambian con el tiempo: si una da 0 ofertas, revísala o desactívala.
 # ---------------------------------------------------------------------------
 sources:
-  # ---- Toda Europa + EE. UU. de una vez (Google Shopping) -------------------
+  # ======================= GOOGLE SHOPPING (toda Europa + EE. UU.) ==========
   # Coste en búsquedas por pasada = nº países × nº queries (aquí 9 × 3 = 27).
   - name: Google Shopping
     type: serpapi
@@ -84,75 +106,305 @@ sources:
     queries: ["RTX 5090", "DGX Spark", "GB10"]
     every_minutes: 360
 
-  # ---- Comparadores (gratis, muchas tiendas por país) -----------------------
-  - {name: idealo ES, type: search, region: ES, url: "https://www.idealo.es/resultados.html?q={query}"}
-  - {name: idealo DE, type: search, region: DE, url: "https://www.idealo.de/preisvergleich/MainSearchProductCategory.html?q={query}"}
-  - {name: idealo FR, type: search, region: FR, url: "https://www.idealo.fr/prechcat.html?q={query}"}
-  - {name: idealo IT, type: search, region: IT, url: "https://www.idealo.it/confronta-prezzi/MainSearchProductCategory.html?q={query}"}
-  - {name: idealo AT, type: search, region: AT, url: "https://www.idealo.at/preisvergleich/MainSearchProductCategory.html?q={query}"}
-  - {name: idealo UK, type: search, region: GB, currency: GBP, url: "https://www.idealo.co.uk/mscat.html?q={query}"}
-  - {name: Geizhals EU, type: search, region: DE, url: "https://geizhals.eu/?fs={query}"}
-  - {name: Tweakers NL, type: search, region: NL, url: "https://tweakers.net/zoeken/?keyword={query}"}
-  - {name: Ceneo PL, type: search, region: PL, currency: PLN, url: "https://www.ceneo.pl/;szukaj-{query}"}
-
-  # ---- Tiendas: España -----------------------------------------------------
-  - {name: PcComponentes, type: search, region: ES, render: true, url: "https://www.pccomponentes.com/search/?query={query}"}
-  - {name: Alternate ES, type: search, region: ES, url: "https://www.alternate.es/listing.xhtml?q={query}"}
-  - {name: LDLC ES, type: search, region: ES, url: "https://www.ldlc.com/es-es/buscar/{query}/"}
-
-  # ---- Tiendas: Alemania / Francia / Benelux / UK --------------------------
-  - {name: Mindfactory DE, type: search, region: DE, url: "https://www.mindfactory.de/search_result.php?search_query={query}"}
-  - {name: Alternate DE, type: search, region: DE, url: "https://www.alternate.de/listing.xhtml?q={query}"}
-  - {name: Caseking DE, type: search, region: DE, url: "https://www.caseking.de/search?search={query}"}
-  - {name: Notebooksbilliger DE, type: search, region: DE, url: "https://www.notebooksbilliger.de/produkte/{query}"}
-  - {name: Proshop DE, type: search, region: DE, url: "https://www.proshop.de/?s={query}"}
-  - {name: LDLC FR, type: search, region: FR, url: "https://www.ldlc.com/recherche/{query}/"}
-  - {name: Materiel.net FR, type: search, region: FR, url: "https://www.materiel.net/recherche/{query}/"}
-  - {name: Scan UK, type: search, region: GB, currency: GBP, url: "https://www.scan.co.uk/search?q={query}"}
-  - {name: Overclockers UK, type: search, region: GB, currency: GBP, url: "https://www.overclockers.co.uk/search?sSearch={query}"}
-
-  # ---- Amazon (varios países) ---------------------------------------------
-  - &amazon
-    name: Amazon ES
+  # ======================= GRANDES MARKETPLACES =============================
+  - name: Amazon
     type: search
-    region: ES
     render: true
-    url: "https://www.amazon.es/s?k={query}"
-    selectors: &amazon_sel
+    selectors:
       item: 'div[data-component-type="s-search-result"]'
       title: "h2"
       price: "span.a-price span.a-offscreen"
       link: "a.a-link-normal"
       stock: "div.a-row.a-size-base"
-  - {<<: *amazon, name: Amazon DE, region: DE, url: "https://www.amazon.de/s?k={query}"}
-  - {<<: *amazon, name: Amazon FR, region: FR, url: "https://www.amazon.fr/s?k={query}"}
-  - {<<: *amazon, name: Amazon IT, region: IT, url: "https://www.amazon.it/s?k={query}"}
-  - {<<: *amazon, name: Amazon US, region: US, currency: USD, url: "https://www.amazon.com/s?k={query}"}
+    variants:
+      - {region: ES, url: "https://www.amazon.es/s?k={query}"}
+      - {region: DE, url: "https://www.amazon.de/s?k={query}"}
+      - {region: FR, url: "https://www.amazon.fr/s?k={query}"}
+      - {region: IT, url: "https://www.amazon.it/s?k={query}"}
+      - {region: NL, url: "https://www.amazon.nl/s?k={query}"}
+      - {region: BE, url: "https://www.amazon.com.be/s?k={query}"}
+      - {region: PL, currency: PLN, url: "https://www.amazon.pl/s?k={query}"}
+      - {region: SE, currency: SEK, url: "https://www.amazon.se/s?k={query}"}
+      - {region: GB, currency: GBP, url: "https://www.amazon.co.uk/s?k={query}"}
+      - {region: US, currency: USD, url: "https://www.amazon.com/s?k={query}"}
 
-  # ---- EE. UU. -------------------------------------------------------------
-  - {name: Newegg US, type: search, region: US, currency: USD, url: "https://www.newegg.com/p/pl?d={query}"}
+  # eBay: sólo artículos NUEVOS y "Cómpralo ya", ordenados por precio + envío.
+  - name: eBay
+    type: search
+    selectors:
+      item: "li.s-item, li.s-card"
+      title: ".s-item__title, .s-card__title"
+      price: ".s-item__price, .s-card__price"
+      link: "a.s-item__link, a.su-link, a"
+    variants:
+      - {region: US, currency: USD, url: "https://www.ebay.com/sch/i.html?_nkw={query}&LH_ItemCondition=1000&LH_BIN=1&_sop=15"}
+      - {region: ES, url: "https://www.ebay.es/sch/i.html?_nkw={query}&LH_ItemCondition=1000&LH_BIN=1&_sop=15"}
+      - {region: DE, url: "https://www.ebay.de/sch/i.html?_nkw={query}&LH_ItemCondition=1000&LH_BIN=1&_sop=15"}
+      - {region: FR, url: "https://www.ebay.fr/sch/i.html?_nkw={query}&LH_ItemCondition=1000&LH_BIN=1&_sop=15"}
+      - {region: IT, url: "https://www.ebay.it/sch/i.html?_nkw={query}&LH_ItemCondition=1000&LH_BIN=1&_sop=15"}
+      - {region: NL, url: "https://www.ebay.nl/sch/i.html?_nkw={query}&LH_ItemCondition=1000&LH_BIN=1&_sop=15"}
+      - {region: BE, url: "https://www.benl.ebay.be/sch/i.html?_nkw={query}&LH_ItemCondition=1000&LH_BIN=1&_sop=15"}
+      - {region: AT, url: "https://www.ebay.at/sch/i.html?_nkw={query}&LH_ItemCondition=1000&LH_BIN=1&_sop=15"}
+      - {region: IE, url: "https://www.ebay.ie/sch/i.html?_nkw={query}&LH_ItemCondition=1000&LH_BIN=1&_sop=15"}
+      - {region: PL, currency: PLN, url: "https://www.ebay.pl/sch/i.html?_nkw={query}&LH_ItemCondition=1000&LH_BIN=1&_sop=15"}
+      - {region: CH, currency: CHF, url: "https://www.ebay.ch/sch/i.html?_nkw={query}&LH_ItemCondition=1000&LH_BIN=1&_sop=15"}
+      - {region: GB, currency: GBP, url: "https://www.ebay.co.uk/sch/i.html?_nkw={query}&LH_ItemCondition=1000&LH_BIN=1&_sop=15"}
+
+  - name: Allegro PL
+    type: search
+    region: PL
+    currency: PLN
+    render: true
+    url: "https://allegro.pl/listing?string={query}&stan=nowe"
+
+  - name: eMAG
+    type: search
+    variants:
+      - {region: RO, currency: RON, url: "https://www.emag.ro/search/{query}"}
+      - {region: HU, currency: HUF, url: "https://www.emag.hu/search/{query}"}
+      - {region: BG, currency: EUR, url: "https://www.emag.bg/search/{query}"}
+
+  - name: Kaufland
+    type: search
+    variants:
+      - {region: DE, url: "https://www.kaufland.de/s/?search_value={query}"}
+      - {region: CZ, currency: CZK, url: "https://www.kaufland.cz/s/?search_value={query}"}
+      - {region: PL, currency: PLN, url: "https://www.kaufland.pl/s/?search_value={query}"}
+      - {region: SK, url: "https://www.kaufland.sk/s/?search_value={query}"}
+
+  - {name: Bol.com NL, type: search, region: NL, url: "https://www.bol.com/nl/nl/s/?searchtext={query}"}
+  - {name: Cdiscount FR, type: search, region: FR, render: true, url: "https://www.cdiscount.com/search/10/{query}.html"}
+  - {name: Otto DE, type: search, region: DE, url: "https://www.otto.de/suche/{query}/"}
+
+  # ======================= EE. UU. ==========================================
+  - {name: Walmart US, type: search, region: US, currency: USD, render: true, url: "https://www.walmart.com/search?q={query}"}
+  - {name: Best Buy US, type: search, region: US, currency: USD, render: true, url: "https://www.bestbuy.com/site/searchpage.jsp?st={query}"}
+  - {name: Newegg US, type: search, region: US, currency: USD, url: "https://www.newegg.com/p/pl?d={query}&N=4131"}
   - {name: B&H US, type: search, region: US, currency: USD, render: true, url: "https://www.bhphotovideo.com/c/search?q={query}"}
   - {name: Micro Center US, type: search, region: US, currency: USD, render: true, url: "https://www.microcenter.com/search/search_results.aspx?Ntt={query}"}
-  - {name: Best Buy US, type: search, region: US, currency: USD, render: true, url: "https://www.bestbuy.com/site/searchpage.jsp?st={query}"}
+  - {name: Target US, type: search, region: US, currency: USD, render: true, url: "https://www.target.com/s?searchTerm={query}"}
+  - {name: Costco US, type: search, region: US, currency: USD, render: true, url: "https://www.costco.com/CatalogSearch?keyword={query}"}
+  - {name: Adorama US, type: search, region: US, currency: USD, render: true, url: "https://www.adorama.com/l/?searchinfo={query}"}
+  # Distribuidores que venden DGX Spark y equipos GB10 (Dell, ASUS, Lenovo, HP, MSI...)
+  - {name: CDW US, type: search, region: US, currency: USD, render: true, url: "https://www.cdw.com/search/?key={query}"}
+  - {name: Central Computers US, type: search, region: US, currency: USD, url: "https://www.centralcomputer.com/catalogsearch/result/?q={query}"}
+  - {name: Dell US, type: search, region: US, currency: USD, render: true, url: "https://www.dell.com/en-us/search/{query}"}
 
-  # ---- Tiendas oficiales (Founders Edition / DGX Spark) --------------------
+  # ======================= COMPARADORES EUROPEOS ============================
+  - name: idealo
+    type: search
+    variants:
+      - {region: ES, url: "https://www.idealo.es/resultados.html?q={query}"}
+      - {region: DE, url: "https://www.idealo.de/preisvergleich/MainSearchProductCategory.html?q={query}"}
+      - {region: FR, url: "https://www.idealo.fr/prechcat.html?q={query}"}
+      - {region: IT, url: "https://www.idealo.it/confronta-prezzi/MainSearchProductCategory.html?q={query}"}
+      - {region: AT, url: "https://www.idealo.at/preisvergleich/MainSearchProductCategory.html?q={query}"}
+      - {region: GB, currency: GBP, url: "https://www.idealo.co.uk/mscat.html?q={query}"}
+  - name: Geizhals
+    type: search
+    variants:
+      - {region: DE, url: "https://geizhals.de/?fs={query}"}
+      - {region: AT, url: "https://geizhals.at/?fs={query}"}
+      - {name: Geizhals EU, region: DE, url: "https://geizhals.eu/?fs={query}"}
+  - {name: billiger.de DE, type: search, region: DE, url: "https://www.billiger.de/search?searchstring={query}"}
+  - {name: Toppreise CH, type: search, region: CH, currency: CHF, url: "https://www.toppreise.ch/produktsuche?q={query}"}
+  - {name: Trovaprezzi IT, type: search, region: IT, url: "https://www.trovaprezzi.it/categoria.aspx?libera={query}&id=-1"}
+  - {name: KuantoKusta PT, type: search, region: PT, url: "https://www.kuantokusta.pt/search?q={query}"}
+  - {name: Tweakers NL, type: search, region: NL, url: "https://tweakers.net/zoeken/?keyword={query}"}
+  - {name: Kieskeurig NL, type: search, region: NL, url: "https://www.kieskeurig.nl/search?q={query}"}
+  - {name: Ceneo PL, type: search, region: PL, currency: PLN, url: "https://www.ceneo.pl/;szukaj-{query}"}
+  - name: Heureka
+    type: search
+    variants:
+      - {region: CZ, currency: CZK, url: "https://www.heureka.cz/?h%5Bfraze%5D={query}"}
+      - {region: SK, url: "https://www.heureka.sk/?h%5Bfraze%5D={query}"}
+  - {name: Árukereső HU, type: search, region: HU, currency: HUF, url: "https://www.arukereso.hu/CategorySearch.php?st={query}"}
+  - {name: Compari RO, type: search, region: RO, currency: RON, url: "https://www.compari.ro/CategorySearch.php?st={query}"}
+  - {name: Skroutz GR, type: search, region: GR, url: "https://www.skroutz.gr/search?keyphrase={query}"}
+  - name: PriceRunner
+    type: search
+    variants:
+      - {region: SE, currency: SEK, url: "https://www.pricerunner.se/results?q={query}"}
+      - {region: DK, currency: DKK, url: "https://www.pricerunner.dk/results?q={query}"}
+      - {region: GB, currency: GBP, url: "https://www.pricerunner.com/results?q={query}"}
+  - name: Prisjakt
+    type: search
+    variants:
+      - {region: SE, currency: SEK, url: "https://www.prisjakt.nu/search?search={query}"}
+      - {region: "NO", currency: NOK, url: "https://www.prisjakt.no/search?search={query}"}
+      - {name: Hintaopas FI, region: FI, url: "https://hintaopas.fi/search?search={query}"}
+
+  # ======================= TIENDAS: ESPAÑA Y PORTUGAL =======================
+  - {name: PcComponentes ES, type: search, region: ES, render: true, url: "https://www.pccomponentes.com/search/?query={query}"}
+  - {name: Coolmod ES, type: search, region: ES, render: true, url: "https://www.coolmod.com/#/dffullscreen/query={query}"}
+  - {name: Neobyte ES, type: search, region: ES, url: "https://www.neobyte.es/buscar?controller=search&s={query}"}
+  - {name: Wipoid ES, type: search, region: ES, url: "https://www.wipoid.com/buscar?controller=search&s={query}"}
+  - {name: Aussar ES, type: search, region: ES, url: "https://www.aussar.es/buscar?controller=search&s={query}"}
+  - {name: Fnac ES, type: search, region: ES, render: true, url: "https://www.fnac.es/SearchResult/ResultList.aspx?Search={query}"}
+  - {name: El Corte Inglés ES, type: search, region: ES, render: true, url: "https://www.elcorteingles.es/search-nwx/1/?s={query}"}
+  - name: Worten
+    type: search
+    render: true
+    variants:
+      - {region: ES, url: "https://www.worten.es/search?query={query}"}
+      - {region: PT, url: "https://www.worten.pt/search?query={query}"}
+  - {name: Globaldata PT, type: search, region: PT, url: "https://www.globaldata.pt/catalogsearch/result/?q={query}"}
+  - {name: PCDiga PT, type: search, region: PT, render: true, url: "https://www.pcdiga.com/search?query={query}"}
+
+  # ======================= MEDIAMARKT / SATURN / MEDIAWORLD =================
+  - name: MediaMarkt
+    type: search
+    render: true
+    variants:
+      - {region: ES, url: "https://www.mediamarkt.es/es/search.html?query={query}"}
+      - {region: DE, url: "https://www.mediamarkt.de/de/search.html?query={query}"}
+      - {region: AT, url: "https://www.mediamarkt.at/de/search.html?query={query}"}
+      - {region: NL, url: "https://www.mediamarkt.nl/nl/search.html?query={query}"}
+      - {region: BE, url: "https://www.mediamarkt.be/nl/search.html?query={query}"}
+      - {region: PL, currency: PLN, url: "https://mediamarkt.pl/pl/search.html?query={query}"}
+      - {region: HU, currency: HUF, url: "https://www.mediamarkt.hu/hu/search.html?query={query}"}
+      - {name: Saturn DE, region: DE, url: "https://www.saturn.de/de/search.html?query={query}"}
+      - {name: MediaWorld IT, region: IT, url: "https://www.mediaworld.it/it/search.html?query={query}"}
+
+  # ======================= TIENDAS: ALEMANIA / AUSTRIA / SUIZA ==============
+  - {name: Mindfactory DE, type: search, region: DE, url: "https://www.mindfactory.de/search_result.php?search_query={query}"}
+  - {name: Caseking DE, type: search, region: DE, url: "https://www.caseking.de/search?search={query}"}
+  - {name: Notebooksbilliger DE, type: search, region: DE, url: "https://www.notebooksbilliger.de/produkte/{query}"}
+  - {name: Computeruniverse DE, type: search, region: DE, render: true, url: "https://www.computeruniverse.net/de/search?query={query}"}
+  - name: Cyberport
+    type: search
+    variants:
+      - {region: DE, url: "https://www.cyberport.de/tools/search-results.html?q={query}"}
+      - {region: AT, url: "https://www.cyberport.at/tools/search-results.html?q={query}"}
+  - name: Galaxus / Digitec
+    type: search
+    render: true
+    variants:
+      - {name: Galaxus DE, region: DE, url: "https://www.galaxus.de/de/search?q={query}"}
+      - {name: Galaxus AT, region: AT, url: "https://www.galaxus.at/de/search?q={query}"}
+      - {name: Galaxus FR, region: FR, url: "https://www.galaxus.fr/fr/search?q={query}"}
+      - {name: Galaxus IT, region: IT, url: "https://www.galaxus.it/it/search?q={query}"}
+      - {name: Galaxus NL, region: NL, url: "https://www.galaxus.nl/nl/search?q={query}"}
+      - {name: Galaxus BE, region: BE, url: "https://www.galaxus.be/nl/search?q={query}"}
+      - {name: Digitec CH, region: CH, currency: CHF, url: "https://www.digitec.ch/de/search?q={query}"}
+  - {name: Brack CH, type: search, region: CH, currency: CHF, url: "https://www.brack.ch/search?query={query}"}
+
+  # ======================= ALTERNATE / LDLC / PROSHOP / KOMPLETT ============
+  - name: Alternate
+    type: search
+    variants:
+      - {region: ES, url: "https://www.alternate.es/listing.xhtml?q={query}"}
+      - {region: DE, url: "https://www.alternate.de/listing.xhtml?q={query}"}
+      - {region: NL, url: "https://www.alternate.nl/listing.xhtml?q={query}"}
+      - {region: BE, url: "https://www.alternate.be/listing.xhtml?q={query}"}
+      - {region: FR, url: "https://www.alternate.fr/listing.xhtml?q={query}"}
+      - {region: AT, url: "https://www.alternate.at/listing.xhtml?q={query}"}
+  - name: LDLC
+    type: search
+    variants:
+      - {region: ES, url: "https://www.ldlc.com/es-es/buscar/{query}/"}
+      - {region: FR, url: "https://www.ldlc.com/recherche/{query}/"}
+      - {region: BE, url: "https://www.ldlc.com/fr-be/recherche/{query}/"}
+      - {region: CH, currency: CHF, url: "https://www.ldlc.com/fr-ch/recherche/{query}/"}
+      - {name: Materiel.net FR, region: FR, url: "https://www.materiel.net/recherche/{query}/"}
+  - name: Proshop
+    type: search
+    variants:
+      - {region: DE, url: "https://www.proshop.de/?s={query}"}
+      - {region: AT, url: "https://www.proshop.at/?s={query}"}
+      - {region: DK, currency: DKK, url: "https://www.proshop.dk/?s={query}"}
+      - {region: SE, currency: SEK, url: "https://www.proshop.se/?s={query}"}
+      - {region: "NO", currency: NOK, url: "https://www.proshop.no/?s={query}"}
+      - {region: FI, url: "https://www.proshop.fi/?s={query}"}
+      - {region: PL, currency: PLN, url: "https://www.proshop.pl/?s={query}"}
+  - name: Komplett
+    type: search
+    variants:
+      - {region: SE, currency: SEK, url: "https://www.komplett.se/search?q={query}"}
+      - {region: "NO", currency: NOK, url: "https://www.komplett.no/search?q={query}"}
+      - {region: DK, currency: DKK, url: "https://www.komplett.dk/search?q={query}"}
+      - {region: IE, url: "https://www.komplett.ie/search?q={query}"}
+
+  # ======================= TIENDAS: FRANCIA / ITALIA / BENELUX ==============
+  - {name: Top Achat FR, type: search, region: FR, url: "https://www.topachat.com/pages/recherche.php?cat=accueil&etou=0&mc={query}"}
+  - {name: Fnac FR, type: search, region: FR, render: true, url: "https://www.fnac.com/SearchResult/ResultList.aspx?Search={query}"}
+  - {name: Boulanger FR, type: search, region: FR, render: true, url: "https://www.boulanger.com/resultats?tr={query}"}
+  - {name: Grosbill FR, type: search, region: FR, url: "https://www.grosbill.com/catv2.cgi?mode=recherche&recherche={query}"}
+  - {name: ePRICE IT, type: search, region: IT, url: "https://www.eprice.it/sa/?qs={query}"}
+  - {name: Unieuro IT, type: search, region: IT, render: true, url: "https://www.unieuro.it/online/?q={query}"}
+  - name: Coolblue
+    type: search
+    render: true
+    variants:
+      - {region: NL, url: "https://www.coolblue.nl/zoeken?query={query}"}
+      - {region: BE, url: "https://www.coolblue.be/nl/zoeken?query={query}"}
+  - {name: Megekko NL, type: search, region: NL, url: "https://www.megekko.nl/zoeken?q={query}"}
+  - {name: Azerty NL, type: search, region: NL, url: "https://azerty.nl/catalogsearch/result/?q={query}"}
+
+  # ======================= TIENDAS: EUROPA DEL ESTE =========================
+  - {name: x-kom PL, type: search, region: PL, currency: PLN, url: "https://www.x-kom.pl/szukaj?q={query}"}
+  - {name: Morele PL, type: search, region: PL, currency: PLN, url: "https://www.morele.net/wyszukiwarka/?q={query}"}
+  - {name: Komputronik PL, type: search, region: PL, currency: PLN, url: "https://www.komputronik.pl/search?query={query}"}
+  - name: Alza
+    type: search
+    variants:
+      - {region: CZ, currency: CZK, url: "https://www.alza.cz/search.htm?exps={query}"}
+      - {region: SK, url: "https://www.alza.sk/search.htm?exps={query}"}
+      - {region: HU, currency: HUF, url: "https://www.alza.hu/search.htm?exps={query}"}
+      - {region: AT, url: "https://www.alza.at/search.htm?exps={query}"}
+      - {region: DE, url: "https://www.alza.de/search.htm?exps={query}"}
+  - {name: CZC CZ, type: search, region: CZ, currency: CZK, url: "https://www.czc.cz/{query}/hledat"}
+  - {name: PC Garage RO, type: search, region: RO, currency: RON, url: "https://www.pcgarage.ro/cauta/{query}/"}
+
+  # ======================= TIENDAS: NÓRDICOS ================================
+  - {name: Inet SE, type: search, region: SE, currency: SEK, url: "https://www.inet.se/hitta?q={query}"}
+  - {name: Webhallen SE, type: search, region: SE, currency: SEK, render: true, url: "https://www.webhallen.com/se/search?searchString={query}"}
+  - name: Elgiganten / Elkjøp / Gigantti
+    type: search
+    render: true
+    variants:
+      - {name: Elgiganten SE, region: SE, currency: SEK, url: "https://www.elgiganten.se/search?q={query}"}
+      - {name: Elgiganten DK, region: DK, currency: DKK, url: "https://www.elgiganten.dk/search?q={query}"}
+      - {name: Elkjøp NO, region: "NO", currency: NOK, url: "https://www.elkjop.no/search?q={query}"}
+      - {name: Gigantti FI, region: FI, url: "https://www.gigantti.fi/search?q={query}"}
+  - {name: Verkkokauppa FI, type: search, region: FI, render: true, url: "https://www.verkkokauppa.com/fi/search?query={query}"}
+  - {name: Jimm's FI, type: search, region: FI, url: "https://www.jimms.fi/fi/Product/Search?q={query}"}
+
+  # ======================= TIENDAS: REINO UNIDO / IRLANDA ===================
+  - {name: Scan UK, type: search, region: GB, currency: GBP, url: "https://www.scan.co.uk/search?q={query}"}
+  - {name: Overclockers UK, type: search, region: GB, currency: GBP, url: "https://www.overclockers.co.uk/search?sSearch={query}"}
+  - {name: Ebuyer UK, type: search, region: GB, currency: GBP, url: "https://www.ebuyer.com/search?q={query}"}
+  - {name: CCL UK, type: search, region: GB, currency: GBP, url: "https://www.cclonline.com/search/?q={query}"}
+  - {name: Currys UK, type: search, region: GB, currency: GBP, render: true, url: "https://www.currys.co.uk/search?q={query}"}
+
+  # ======================= TIENDAS OFICIALES (FE / DGX Spark / GB10) ========
   - name: NVIDIA Marketplace
     type: page
     render: true
-    urls:
-      - https://marketplace.nvidia.com/es-es/consumer/graphics-cards/
-      - https://marketplace.nvidia.com/es-es/developer/
-  - {name: NVIDIA Marketplace DE, type: page, region: DE, render: true,
-     urls: ["https://marketplace.nvidia.com/de-de/consumer/graphics-cards/", "https://marketplace.nvidia.com/de-de/developer/"]}
-  - {name: NVIDIA Marketplace FR, type: page, region: FR, render: true,
-     urls: ["https://marketplace.nvidia.com/fr-fr/consumer/graphics-cards/", "https://marketplace.nvidia.com/fr-fr/developer/"]}
-  - {name: NVIDIA Marketplace US, type: page, region: US, currency: USD, render: true,
-     urls: ["https://marketplace.nvidia.com/en-us/consumer/graphics-cards/", "https://marketplace.nvidia.com/en-us/developer/"]}
+    variants:
+      - {region: ES, urls: ["https://marketplace.nvidia.com/es-es/consumer/graphics-cards/", "https://marketplace.nvidia.com/es-es/developer/"]}
+      - {region: DE, urls: ["https://marketplace.nvidia.com/de-de/consumer/graphics-cards/", "https://marketplace.nvidia.com/de-de/developer/"]}
+      - {region: FR, urls: ["https://marketplace.nvidia.com/fr-fr/consumer/graphics-cards/", "https://marketplace.nvidia.com/fr-fr/developer/"]}
+      - {region: IT, urls: ["https://marketplace.nvidia.com/it-it/consumer/graphics-cards/", "https://marketplace.nvidia.com/it-it/developer/"]}
+      - {region: GB, currency: GBP, urls: ["https://marketplace.nvidia.com/en-gb/consumer/graphics-cards/", "https://marketplace.nvidia.com/en-gb/developer/"]}
+      - {region: US, currency: USD, urls: ["https://marketplace.nvidia.com/en-us/consumer/graphics-cards/", "https://marketplace.nvidia.com/en-us/developer/"]}
+  - name: Dell
+    type: search
+    render: true
+    queries: ["Pro Max GB10"]
+    variants:
+      - {region: ES, url: "https://www.dell.com/es-es/search/{query}"}
+      - {region: DE, url: "https://www.dell.com/de-de/search/{query}"}
+      - {region: FR, url: "https://www.dell.com/fr-fr/search/{query}"}
+      - {region: IT, url: "https://www.dell.com/it-it/search/{query}"}
+      - {region: GB, currency: GBP, url: "https://www.dell.com/en-uk/search/{query}"}
 
 # Respaldo si no se puede descargar el cambio diario del BCE (euros por unidad).
 fx_to_eur: {USD: 0.86, GBP: 1.15, CHF: 1.07, PLN: 0.235, CZK: 0.04, SEK: 0.09, DKK: 0.134, NOK: 0.085, HUF: 0.0025, RON: 0.2}
 
 include_out_of_stock: false
-delay_seconds: [2, 5]       # pausa aleatoria entre peticiones
+parallel: 8                 # tiendas consultadas a la vez
+parallel_browsers: 3        # navegadores Chromium a la vez (para las fuentes con render: true)
+delay_seconds: [2, 5]       # pausa aleatoria entre peticiones a la misma tienda
 state_file: state.json      # recuerda precios para avisar sólo de novedades / bajadas
 csv_file: historial.csv     # histórico de todo lo visto (pon null para desactivar)

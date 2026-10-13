@@ -5,10 +5,10 @@ import yaml
 from pathlib import Path
 
 from pricescan.extract import extract_all, parse_price
-from pricescan.products import Product, classify
+from pricescan.products import Product, classify, load_products
 
 CFG = yaml.safe_load((Path(__file__).parent.parent / "config.yaml").read_text())
-PRODUCTS = [Product.from_dict(p) for p in CFG["products"]]
+PRODUCTS = load_products(CFG)
 
 
 @pytest.mark.parametrize("text,expected", [
@@ -150,11 +150,61 @@ def test_jsonld_limited_availability():
 
 
 def test_config_sources_valid():
-    from pricescan.sources import COUNTRIES, RUNNERS
-    for src in CFG["sources"]:
+    from pricescan.sources import COUNTRIES, RUNNERS, expand_sources
+    sources = expand_sources(CFG)
+    names = [s["name"] for s in sources]
+    assert len(names) == len(set(names)), "nombres de fuente repetidos"
+    for src in sources:
         assert src["type"] in RUNNERS, src
         if src["type"] == "search":
-            assert "{query}" in src["url"], src
-    amazon_de = next(s for s in CFG["sources"] if s["name"] == "Amazon DE")
-    assert amazon_de["selectors"]["item"] and amazon_de["region"] == "DE"
-    assert all(c in COUNTRIES for c in CFG["sources"][0]["countries"])
+            assert "{query}" in src["url"] and src.get("queries"), src
+        if src["type"] == "page":
+            assert src["urls"], src
+        # YAML lee NO (Noruega), ON, Y... como booleanos: hay que ponerlos entre comillas.
+        assert isinstance(src.get("region", ""), str), src["name"]
+    assert all(isinstance(k, str) for k in CFG["landing"])
+    by_name = {s["name"]: s for s in sources}
+    for name in ("Amazon DE", "Amazon US", "eBay US", "eBay DE", "Walmart US", "Best Buy US",
+                 "Alza CZ", "x-kom PL", "Komplett SE", "Galaxus FR", "Digitec CH", "MediaWorld IT"):
+        assert name in by_name, name
+    assert by_name["eBay US"]["currency"] == "USD" and by_name["eBay US"]["selectors"]["item"]
+    assert by_name["Dell ES"]["queries"] == ["Pro Max GB10"]          # la fuente manda
+    assert by_name["Amazon ES"]["queries"] == CFG["shop_queries"]      # si no, shop_queries
+    assert all(c in COUNTRIES for c in by_name["Google Shopping"]["countries"])
+
+
+@pytest.mark.parametrize("title", [
+    "NVIDIA GeForce RTX 5090 32GB - EMPTY BOX ONLY", "RTX 5090 Founders Edition gebraucht",
+    "Karta graficzna RTX 5090 używany", "RTX 5090 usato come nuovo", "Gigabyte RTX 5090 (Renewed)",
+    "RTX 5090 begagnad", "ASUS RTX 5090 käytetty", "DGX Spark refurbished",
+])
+def test_common_exclude(title):
+    assert classify(title, PRODUCTS) is None
+
+
+@pytest.mark.parametrize("text", [
+    "Endast 2 kvar", "Poslední kus skladem", "Kun 1 tilbage", "Vain 2 jäljellä",
+    "Utolsó darabok", "Ultimele bucăți", "Only a few left", "Last one", "2 available",
+])
+def test_low_stock_more_languages(text):
+    from pricescan.extract import LOW_STOCK_RE
+    assert LOW_STOCK_RE.search(text)
+
+
+def test_low_stock_no_false_positive():
+    from pricescan.extract import LOW_STOCK_RE
+    assert not LOW_STOCK_RE.search("More than 10 available · Free shipping")
+
+
+def test_ebay_listing():
+    ebay = next(s for s in CFG["sources"] if s["name"] == "eBay")
+    html = """<ul>
+      <li class="s-item"><a class="s-item__link" href="https://ebay.example/itm/0">
+        <div class="s-item__title">Shop on eBay</div></a><span class="s-item__price">$20.00</span></li>
+      <li class="s-item"><a class="s-item__link" href="https://ebay.example/itm/1">
+        <div class="s-item__title">New Listing MSI GeForce RTX 5090 32GB Gaming Trio OC</div></a>
+        <span class="s-item__price">EUR 2.149,00</span><span>Last one</span></li>
+    </ul>"""
+    offers = extract_all(html, "https://www.ebay.com/sch", selectors=ebay["selectors"], currency="USD")
+    o = next(x for x in offers if classify(x.title, PRODUCTS))
+    assert (o.price, o.currency, o.low_stock, o.url) == (2149.0, "EUR", True, "https://ebay.example/itm/1")

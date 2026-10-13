@@ -11,6 +11,7 @@ import json
 import logging
 import random
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -20,8 +21,8 @@ import yaml
 from . import notify
 from .extract import Offer, dedupe
 from .fx import eur_rates
-from .products import Product, classify
-from .sources import RUNNERS, Fetcher
+from .products import Product, classify, load_products
+from .sources import RUNNERS, Fetcher, expand_sources
 
 log = logging.getLogger("pricescan")
 
@@ -58,32 +59,66 @@ def _due(src: dict, state: dict) -> bool:
     return time.time() - last >= every * 60 * 0.95
 
 
-def scan(cfg: dict, state: dict) -> list[Hit]:
-    products = [Product.from_dict(p) for p in cfg["products"]]
-    fetcher = Fetcher(delay=tuple(cfg.get("delay_seconds", [2, 5])))
-    raw: list[Offer] = []
+def _run(src: dict, fetcher: Fetcher, products: list[Product]) -> list[Offer]:
+    name = src.get("name", src["type"])
     try:
-        for src in cfg.get("sources", []):
-            name = src.get("name", src["type"])
-            if src.get("enabled", True) is False:
-                continue
-            if not _due(src, state):
-                log.info("%-28s (saltada: toca cada %s min)", name, src["every_minutes"])
-                continue
-            got = RUNNERS[src["type"]](src, fetcher, products)
-            state.setdefault("__sources__", {})[name] = time.time()
-            log.info("%-28s %3d ofertas", name, len(got))
-            raw += got
+        got = RUNNERS[src["type"]](src, fetcher, products)
+    except Exception as e:  # noqa: BLE001 — una fuente rota no debe parar el resto
+        log.warning("%s falló: %s", name, e)
+        return []
+    log.info("%-28s %3d ofertas", name, len(got))
+    return got
+
+
+def _run_group(group: list[dict], products: list[Product], delay) -> list[Offer]:
+    """Procesa varias fuentes seguidas con una sola sesión (y un solo Chromium si hace falta)."""
+    fetcher = Fetcher(delay=delay)
+    try:
+        return [o for src in group for o in _run(src, fetcher, products)]
     finally:
         fetcher.close()
 
+
+def scan(cfg: dict, state: dict) -> list[Hit]:
+    products = load_products(cfg)
+    delay = tuple(cfg.get("delay_seconds", [2, 5]))
+    todo = []
+    for src in expand_sources(cfg):
+        if src.get("enabled", True) is False:
+            continue
+        if not _due(src, state):
+            log.info("%-28s (saltada: toca cada %s min)", src.get("name"), src["every_minutes"])
+            continue
+        todo.append(src)
+    log.info("Consultando %d fuentes...", len(todo))
+
+    # Cada tienda es un servidor distinto: las fuentes HTTP van en paralelo (una por hilo) y las
+    # que necesitan Chromium se reparten en unos pocos grupos, cada uno con su navegador.
+    plain = [[s] for s in todo if not s.get("render")]
+    rendered = [s for s in todo if s.get("render")]
+    n_browsers = max(1, int(cfg.get("parallel_browsers", 3)))
+    # Los grupos con navegador primero, para que arranquen ya y no esperen a las HTTP.
+    groups = [g for g in (rendered[i::n_browsers] for i in range(n_browsers)) if g] + plain
+    raw: list[Offer] = []
+    with ThreadPoolExecutor(max_workers=int(cfg.get("parallel", 8)) + n_browsers) as pool:
+        for got in pool.map(lambda g: _run_group(g, products, delay), groups):
+            raw += got
+    now = time.time()
+    for s in todo:
+        state.setdefault("__sources__", {})[s.get("name", s["type"])] = now
+
     rates = eur_rates(cfg.get("fx_to_eur", {}))
     hits = []
+    missing: set[str] = set()
     for offer in dedupe(raw):
         if offer.in_stock is False and not cfg.get("include_out_of_stock", False):
             continue
         product = classify(offer.title, products)
         rate = rates.get((offer.currency or "EUR").upper())
+        if product and not rate:
+            if offer.currency not in missing:
+                log.warning("Sin tipo de cambio para %s: añádelo a fx_to_eur (ignoro esas ofertas).", offer.currency)
+            missing.add(offer.currency)
         if product and rate:
             eur = round(offer.price * rate, 2)
             hits.append(Hit(product, offer, eur, round(landed_cost(eur, offer.region, cfg), 2)))

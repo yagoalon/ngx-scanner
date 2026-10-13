@@ -61,3 +61,9 @@ def classify(title: str, products: list[Product]) -> Product | None:
         if p.matches(title):
             return p
     return None
+
+
+def load_products(cfg: dict) -> list[Product]:
+    """Productos de la config, añadiendo a cada uno las exclusiones comunes ('common_exclude')."""
+    common = cfg.get("common_exclude", [])
+    return [Product.from_dict({**p, "exclude": list(p.get("exclude", [])) + common}) for p in cfg["products"]]
